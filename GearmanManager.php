@@ -811,10 +811,9 @@ abstract class GearmanManager {
             }
 
             while (true) {
-                if (inotify_queue_len($inotify) > 0) {
+                if (inotify_read($inotify) !== false) {
                     posix_kill($this->parent_pid, SIGHUP);
                 }
-                sleep(5);
             }
         } else {
             exit();

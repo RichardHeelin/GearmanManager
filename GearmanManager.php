@@ -553,7 +553,7 @@ abstract class GearmanManager {
                 $this->show_help("Worker dir ".$dir." not found");
             }
             if(!empty($this->config['auto_update'])){
-                $this->watch_list = array_merge($this->watch_list, $this->get_directories($dir));
+                $this->watch_list[] = $dir;
             }
         }
         unset($dir);
@@ -600,16 +600,6 @@ abstract class GearmanManager {
             exit();
         }
 
-    }
-
-    protected function get_directories($dir) {
-        $directories = array($dir);
-        for ($iterator = new RecursiveDirectoryIterator($dir); $iterator->valid(); $iterator->next()) {
-            if (!$iterator->isDot() && $iterator->isDir()) {
-                $directories[] = $iterator->getPathname();
-            }
-        }
-        return $directories;
     }
 
     /**
@@ -812,27 +802,16 @@ abstract class GearmanManager {
             $this->log("Running loop to check for new code", self::LOG_LEVEL_DEBUG);
 
             $inotify = inotify_init();
-            $flags = IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | IN_MOVED_TO | IN_MOVED_FROM | IN_CREATE | IN_DELETE
-                    | IN_DELETE_SELF | IN_MOVE_SELF;
-
             foreach ($this->watch_list as $path) {
-                inotify_add_watch($inotify, $path, $flags);
+                inotify_add_watch($inotify, $path,
+                    IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | IN_MOVED_TO | IN_MOVED_FROM | IN_CREATE | IN_DELETE
+                    | IN_DELETE_SELF | IN_MOVE_SELF
+                );
             }
 
             while (true) {
-                $events = inotify_read($inotify);
-                if ($events !== false) {
+                if (inotify_read($inotify) !== false) {
                     posix_kill($this->parent_pid, SIGHUP);
-                    foreach ($events as $event) {
-                        if ($event['mask'] | IN_ISDIR | IN_CREATE == $event['mask']
-                            || $event['mask'] | IN_ISDIR | IN_MOVED_TO == $event['mask']) {
-                            foreach ($this->get_directories($event['name']) as $directory) {
-                                inotify_add_watch($inotify, $directory, $flags);
-                            }
-                        } else if ($event['mask'] | IN_DELETE_SELF == $event['mask']) {
-                            inotify_rm_watch($inotify, $event['wd']);
-                        }
-                    }
                 }
             }
         } else {

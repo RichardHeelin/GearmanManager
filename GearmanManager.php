@@ -240,6 +240,10 @@ abstract class GearmanManager {
             $this->show_help("The function pcntl_fork was not found. Please ensure Process Control functions are installed");
         }
 
+        if(!function_exists("inotify_add_watch")){
+            $this->show_help("The function inotify_add_watch was not found. Please ensure Inotify functions are installed");
+        }
+
         $this->pid = getmypid();
 
         /**

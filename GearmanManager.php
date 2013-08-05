@@ -79,6 +79,11 @@ abstract class GearmanManager {
     protected $config = array();
 
     /**
+     * Boolean value that determines if the running code is a daemon
+     */
+    protected $isdaemon = false;
+
+    /**
      * Boolean value that determines if the running code is the parent or a child
      */
     protected $isparent = true;
@@ -457,12 +462,13 @@ abstract class GearmanManager {
         /**
          * If we want to daemonize, fork here and exit
          */
-        if(isset($opts["d"])){
+        if(!$this->isdaemon && isset($opts["d"])){
             $pid = pcntl_fork();
             if($pid>0){
                 $this->isparent = false;
                 exit();
             }
+            $this->isdaemon = true;
             $this->pid = getmypid();
             posix_setsid();
         }
@@ -1130,6 +1136,7 @@ abstract class GearmanManager {
                     break;
                 case SIGHUP:
                     $this->log("Restarting children", GearmanManager::LOG_LEVEL_PROC_INFO);
+                    $this->getopt();
                     if ($this->log_file) {
                         $this->open_log_file();
                     }

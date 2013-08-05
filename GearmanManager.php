@@ -150,12 +150,6 @@ abstract class GearmanManager {
     protected $user = null;
 
     /**
-     * If true, the worker code directory is checked for updates and workers
-     * are restarted automatically.
-     */
-    protected $check_code = false;
-
-    /**
      * Holds the last timestamp of when the code was checked for updates
      */
     protected $last_check_time = 0;
@@ -223,6 +217,11 @@ abstract class GearmanManager {
      * Function/Class prefix
      */
     protected $prefix = "";
+
+    /**
+     * List of files / directories to watch for changes
+     */
+    protected $watch_list = array();
 
     /**
      * Creates the manager and gets things going
@@ -400,6 +399,7 @@ abstract class GearmanManager {
          * parse the config file
          */
         if(isset($opts["c"])){
+            $this->watch_list[] = $opts["c"];
             $this->parse_config($opts["c"]);
         }
 
@@ -535,10 +535,6 @@ abstract class GearmanManager {
             $this->log("User set to {$this->user}", GearmanManager::LOG_LEVEL_PROC_INFO);
         }
 
-        if(!empty($this->config['auto_update'])){
-            $this->check_code = true;
-        }
-
         if(!empty($this->config['worker_dir'])){
             $this->worker_dir = $this->config['worker_dir'];
         } else {
@@ -550,6 +546,9 @@ abstract class GearmanManager {
             $dir = trim($dir);
             if(!file_exists($dir)){
                 $this->show_help("Worker dir ".$dir." not found");
+            }
+            if(!empty($this->config['auto_update'])){
+                $this->watch_list[] = $dir;
             }
         }
         unset($dir);
@@ -794,25 +793,22 @@ abstract class GearmanManager {
         $this->log("Helper is running. Sending continue to $this->parent_pid.", GearmanManager::LOG_LEVEL_DEBUG);
         posix_kill($this->parent_pid, SIGCONT);
 
-        if($this->check_code){
+        if(!empty($this->watch_list)){
             $this->log("Running loop to check for new code", self::LOG_LEVEL_DEBUG);
-            $last_check_time = 0;
-            while(1) {
-                $max_time = 0;
-                foreach($this->functions as $name => $func){
-                    clearstatcache();
-                    $mtime = filemtime($func['path']);
-                    $max_time = max($max_time, $mtime);
-                    $this->log("{$func['path']} - $mtime $last_check_time", self::LOG_LEVEL_CRAZY);
-                    if($last_check_time!=0 && $mtime > $last_check_time){
-                        $this->log("New code found. Sending SIGHUP", self::LOG_LEVEL_PROC_INFO);
-                        posix_kill($this->parent_pid, SIGHUP);
-                        break;
-                    }
-                }
-                $last_check_time = $max_time;
+
+            $inotify = inotify_init();
+            foreach ($this->watch_list as $path) {
+                inotify_add_watch($inotify, $path,
+                    IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | IN_MOVED_TO | IN_MOVED_FROM | IN_CREATE | IN_DELETE
+                    | IN_DELETE_SELF | IN_MOVE_SELF
+                );
+            }
+
+            while (inotify_queue_len($inotify) == 0) {
                 sleep(5);
             }
+
+            posix_kill($this->parent_pid, SIGHUP);
         } else {
             exit();
         }

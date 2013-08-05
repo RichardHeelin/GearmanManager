@@ -1137,8 +1137,11 @@ abstract class GearmanManager {
                     break;
                 case SIGHUP:
                     $this->log("Restarting children", GearmanManager::LOG_LEVEL_PROC_INFO);
-                    $this->getopt();
                     $this->stop_children();
+                    $this->children = array();
+                    $this->getopt();
+                    $this->load_workers();
+                    $this->bootstrap();
                     break;
                 default:
                 // handle all other signals

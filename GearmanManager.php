@@ -815,10 +815,8 @@ abstract class GearmanManager {
             $flags = IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE | IN_MOVED_TO | IN_MOVED_FROM | IN_CREATE | IN_DELETE
                     | IN_DELETE_SELF | IN_MOVE_SELF;
 
-            $watch_list = array();
             foreach ($this->watch_list as $path) {
-                $wd = inotify_add_watch($inotify, $path, $flags);
-                $watch_list[$wd] = $path;
+                inotify_add_watch($inotify, $path, $flags);
             }
 
             while (true) {
@@ -828,14 +826,11 @@ abstract class GearmanManager {
                     foreach ($events as $event) {
                         if ($event['mask'] | IN_ISDIR | IN_CREATE == $event['mask']
                             || $event['mask'] | IN_ISDIR | IN_MOVED_TO == $event['mask']) {
-                            $directory = rtrim($watch_list[$event['wd']], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $event['name'];
-                            foreach ($this->get_directories($directory) as $path) {
-                                $wd = inotify_add_watch($inotify, $path, $flags);
-                                $watch_list[$wd] = $path;
+                            foreach ($this->get_directories($event['name']) as $directory) {
+                                inotify_add_watch($inotify, $directory, $flags);
                             }
                         } else if ($event['mask'] | IN_DELETE_SELF == $event['mask']) {
                             inotify_rm_watch($inotify, $event['wd']);
-                            unset($watch_list[$event['wd']]);
                         }
                     }
                 }

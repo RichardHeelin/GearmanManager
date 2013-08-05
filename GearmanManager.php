@@ -404,7 +404,6 @@ abstract class GearmanManager {
          * parse the config file
          */
         if(isset($opts["c"])){
-            $this->watch_list[] = $opts["c"];
             $this->parse_config($opts["c"]);
         }
 
